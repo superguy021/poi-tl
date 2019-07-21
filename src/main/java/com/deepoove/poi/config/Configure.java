@@ -20,12 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import com.deepoove.poi.policy.DocxRenderPolicy;
-import com.deepoove.poi.policy.MiniTableRenderPolicy;
-import com.deepoove.poi.policy.NumbericRenderPolicy;
-import com.deepoove.poi.policy.PictureRenderPolicy;
-import com.deepoove.poi.policy.RenderPolicy;
-import com.deepoove.poi.policy.TextRenderPolicy;
+import com.deepoove.poi.policy.*;
 import com.deepoove.poi.util.RegexUtils;
 
 /**
@@ -74,6 +69,7 @@ public class Configure {
         plugin(GramerSymbol.TABLE, new MiniTableRenderPolicy());
         plugin(GramerSymbol.NUMBERIC, new NumbericRenderPolicy());
         plugin(GramerSymbol.DOCX_TEMPLATE, new DocxRenderPolicy());
+        plugin(GramerSymbol.AUTO, new AutoRenderPolicy());
     }
 
     /**
@@ -235,4 +231,21 @@ public class Configure {
 
     }
 
+    public Character guessSign(Class type){
+		for (Map.Entry<Character, RenderPolicy> stringRenderPolicyEntry : defaultPolicys.entrySet()) {
+			RenderPolicy value = stringRenderPolicyEntry.getValue();
+			if(value instanceof AbstractRenderPolicy){
+				Class dataType = ((AbstractRenderPolicy) value).workDataType();
+				if (dataType == null) {
+					continue;
+				}
+
+				if (dataType.isAssignableFrom(type)) {
+					return stringRenderPolicyEntry.getKey();
+				}
+			}
+		}
+
+		return GramerSymbol.TEXT.getSymbol();
+	}
 }

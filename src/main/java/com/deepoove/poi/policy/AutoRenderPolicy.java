@@ -15,23 +15,23 @@
  */
 package com.deepoove.poi.policy;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import com.deepoove.poi.NiceXWPFDocument;
 import com.deepoove.poi.XWPFTemplate;
-import com.deepoove.poi.template.ElementTemplate;
+import com.deepoove.poi.data.*;
+import com.deepoove.poi.template.run.RunTemplate;
+import com.deepoove.poi.util.StyleUtils;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
+import sun.awt.Symbol;
 
-public interface RenderPolicy {
+/**
+ * @author Sayi
+ * @version
+ */
+public class AutoRenderPolicy extends AbstractRenderPolicy<Object> {
 
-    Logger logger = LoggerFactory.getLogger(RenderPolicy.class);
-
-    /**
-     * @param eleTemplate
-     *            模板元素
-     * @param data
-     *            数据
-     * @param template
-     *            持有模板对象
-     */
-    void render(ElementTemplate eleTemplate, Object data, XWPFTemplate template);
+    @Override
+    public void doRender(RunTemplate runTemplate, Object renderData, XWPFTemplate template)
+            throws Exception {
+		throw new RuntimeException("not support");
+    }
 }

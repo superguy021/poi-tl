@@ -45,7 +45,9 @@ public enum GramerSymbol {
     /**
      * word文档模板
      */
-    DOCX_TEMPLATE('+');
+    DOCX_TEMPLATE('+'),
+
+	AUTO('$');
 
     private char symbol;
 

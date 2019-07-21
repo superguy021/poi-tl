@@ -15,8 +15,12 @@
  */
 package com.deepoove.poi.render;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import com.deepoove.poi.config.GramerSymbol;
+import com.deepoove.poi.policy.AutoRenderPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,100 +33,117 @@ import com.deepoove.poi.policy.RenderPolicy;
 import com.deepoove.poi.template.ElementTemplate;
 import com.deepoove.poi.util.ObjectUtils;
 
+import javax.swing.text.AbstractDocument;
+
 /**
  * 渲染器，支持表达式计算接口RenderDataCompute的扩展
- * 
+ *
  * @author Sayi
- * @version
  * @since 1.5.0
  */
 public class Render {
 
-    private final Logger LOGGER = LoggerFactory.getLogger(Render.class);
+	private final Logger LOGGER = LoggerFactory.getLogger(Render.class);
 
-    private RenderDataCompute renderDataCompute;
+	private RenderDataCompute renderDataCompute;
 
-    /**
-     * 默认计算器为ELObjectRenderDataCompute
-     * 
-     * @param root
-     */
-    public Render(Object root) {
-        ObjectUtils.requireNonNull(root, "Data root is null, should be setted first.");
-        renderDataCompute = new ELObjectRenderDataCompute(root, false);
-    }
+	/**
+	 * 默认计算器为ELObjectRenderDataCompute
+	 *
+	 * @param root
+	 */
+	public Render(Object root) {
+		ObjectUtils.requireNonNull(root, "Data root is null, should be setted first.");
+		renderDataCompute = new ELObjectRenderDataCompute(root, false);
+	}
 
-    public Render(RenderDataCompute dataCompute) {
-        this.renderDataCompute = dataCompute;
-    }
+	public Render(RenderDataCompute dataCompute) {
+		this.renderDataCompute = dataCompute;
+	}
 
-    public void render(XWPFTemplate template) {
-        ObjectUtils.requireNonNull(template, "Template is null, should be setted first.");
-        LOGGER.info("Render the template file start...");
+	public void render(XWPFTemplate template) {
+		ObjectUtils.requireNonNull(template, "Template is null, should be setted first.");
+		LOGGER.info("Render the template file start...");
 
-        // 模板
-        List<ElementTemplate> elementTemplates = template.getElementTemplates();
-        if (null == elementTemplates || elementTemplates.isEmpty()) { return; }
-        // 策略
-        RenderPolicy policy = null;
+		// 模板
+		List<ElementTemplate> elementTemplates = template.getElementTemplates();
+		if (null == elementTemplates || elementTemplates.isEmpty()) {
+			return;
+		}
+		// 策略
+		RenderPolicy policy = null;
 
-        try {
-            int docxCount = 0;
-            for (ElementTemplate runTemplate : elementTemplates) {
-                policy = findPolicy(template.getConfig(), runTemplate);
+		try {
+			int docxCount = 0;
+			Map<String, Object> templateContent = new HashMap<String, Object>();
+			for (ElementTemplate runTemplate : elementTemplates) {
+				Object content = renderDataCompute.compute(runTemplate.getTagName());
+				templateContent.put(runTemplate.getSource(), content);
+				policy = findPolicy(template.getConfig(), runTemplate, content);
 
-                if (policy instanceof DocxRenderPolicy) {
-                    docxCount++;
-                    continue;
-                }
-                doRender(runTemplate, policy, template);
-            }
+				if (policy instanceof DocxRenderPolicy) {
+					docxCount++;
+					continue;
+				}
+				doRender(runTemplate, content, policy, template);
+			}
 
-            if (docxCount >= 1) template.reload(template.getXWPFDocument().generate());
+			if (docxCount >= 1) template.reload(template.getXWPFDocument().generate());
 
-            NiceXWPFDocument current = null;
-            for (int i = 0; i < docxCount; i++) {
-                current = template.getXWPFDocument();
-                elementTemplates = template.getElementTemplates();
-                if (null == elementTemplates || elementTemplates.isEmpty()) {
-                    break;
-                }
+			NiceXWPFDocument current = null;
+			for (int i = 0; i < docxCount; i++) {
+				current = template.getXWPFDocument();
+				elementTemplates = template.getElementTemplates();
+				if (null == elementTemplates || elementTemplates.isEmpty()) {
+					break;
+				}
 
-                for (ElementTemplate runTemplate : elementTemplates) {
-                    policy = findPolicy(template.getConfig(), runTemplate);
-                    if (!(policy instanceof DocxRenderPolicy)) {
-                        continue;
-                    }
-                    doRender(runTemplate, policy, template);
+				for (ElementTemplate runTemplate : elementTemplates) {
+					Object data = templateContent.get(runTemplate.getSource());
+					policy = findPolicy(template.getConfig(), runTemplate, data);
+					if (!(policy instanceof DocxRenderPolicy)) {
+						continue;
+					}
+					doRender(runTemplate, data, policy, template);
 
-                    // 没有最终合并，继续下一个合并
-                    if (current == template.getXWPFDocument()) {
-                        i++;
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.info("Render the template file failed.");
-            throw new RenderException("Render docx failed.", e);
-        }
-        LOGGER.info("Render the template file successed.");
-    }
+					// 没有最终合并，继续下一个合并
+					if (current == template.getXWPFDocument()) {
+						i++;
+						continue;
+					} else {
+						break;
+					}
+				}
+			}
+		} catch (Exception e) {
+			LOGGER.info("Render the template file failed.");
+			throw new RenderException("Render docx failed.", e);
+		}
+		LOGGER.info("Render the template file successed.");
+	}
 
-    private RenderPolicy findPolicy(Configure config, ElementTemplate runTemplate) {
-        RenderPolicy policy;
-        policy = config.getPolicy(runTemplate.getTagName(), runTemplate.getSign());
-        if (null == policy) { throw new RenderException(
-                "Cannot find render policy: [" + runTemplate.getTagName() + "]"); }
-        return policy;
-    }
+	private RenderPolicy findPolicy(Configure config, ElementTemplate runTemplate, Object content) {
+		RenderPolicy policy;
+		policy = config.getPolicy(runTemplate.getTagName(), runTemplate.getSign());
+		if (policy instanceof AutoRenderPolicy) {
+			if (content == null) {
+				policy = config.getPolicy(null, GramerSymbol.TEXT.getSymbol());
+			} else {
+				policy = config.getPolicy(null, config.guessSign(content.getClass()));
+			}
+		}
 
-    private void doRender(ElementTemplate ele, RenderPolicy policy, XWPFTemplate template) {
-        LOGGER.debug("Start render TemplateName:{}, Sign:{}, policy:{}", ele.getTagName(),
-                ele.getSign(), policy.getClass().getSimpleName());
-        policy.render(ele, renderDataCompute.compute(ele.getTagName()), template);
-    }
+		if (null == policy) {
+			throw new RenderException(
+				"Cannot find render policy: [" + runTemplate.getTagName() + "]");
+		}
+		return policy;
+	}
+
+	private void doRender(ElementTemplate ele, Object content, RenderPolicy policy, XWPFTemplate template) {
+		LOGGER.debug("Start render TemplateName:{}, Sign:{}, policy:{}", ele.getTagName(),
+			ele.getSign(), policy.getClass().getSimpleName());
+		policy.render(ele, content, template);
+	}
 
 }
